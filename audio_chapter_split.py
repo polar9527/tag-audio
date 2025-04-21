@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from pydub import AudioSegment, silence
-from mutagen.id3 import ID3, CHAP, CTOC, TIT2
+from mutagen.id3 import ID3, CHAP, CTOC, TIT2, TPE1, TRCK
 import speech_recognition as sr
 from rich.progress import Progress
 import tempfile
@@ -18,7 +18,7 @@ import argparse
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def find_optimal_split(audio, keyword_pos, silence_thresh=-40, look_back=5000):
+def find_optimal_split(audio, keyword_pos, silence_thresh=-45, look_back=5000):
     """
     在关键词位置前寻找最佳静音分割点
     参数:
@@ -76,7 +76,7 @@ def detect_chapters_with_silence(audio_path, progress):
     audio = AudioSegment.from_file(audio_path)
     temp_dir = tempfile.mkdtemp()
     cpu_count = os.cpu_count()
-    chunk_size = 10  # 每个进程处理10秒
+    chunk_size = 5  # 每个进程处理5秒
     
     # 分割音频为临时文件
     task_prepare = progress.add_task("[cyan]准备音频...", total=math.ceil(len(audio)/(chunk_size*1000)))
@@ -123,36 +123,54 @@ def create_chapters(audio_path, split_points):
     return chapters
 
 def save_id3_tags(audio_path, chapters, output_path=None):
-    """保存章节信息到ID3标签"""
-    id3 = ID3()
-    chap_ids = []
-    
-    for i, (start, end, title) in enumerate(chapters):
-        chap_id = f"chp{i+1}"
-        chap_ids.append(chap_id)
-        id3.add(CHAP(
-            element_id=chap_id,
-            start_time=int(start),
-            end_time=int(end),
+    """保存章节信息到ID3标签（兼容播放器显示）"""
+    try:
+        # 加载或创建ID3标签
+        try:
+            id3 = ID3(audio_path)
+        except:
+            id3 = ID3()
+        
+        # 清除现有章节
+        id3.delall('CHAP')
+        id3.delall('CTOC')
+        
+        
+        # 添加章节（确保时间单位是毫秒）
+        chap_ids = []
+        for i, (start_ms, end_ms, title) in enumerate(chapters):
+            chap_id = f"chp{i}"
+            chap_ids.append(chap_id)
+            
+            id3.add(CHAP(
+                element_id=chap_id,
+                start_time=int(start_ms),  # 必须为毫秒
+                end_time=int(end_ms),
+                sub_frames=[
+                    TIT2(encoding=3, text=[title]),  # UTF-8编码
+                ]
+            ))
+        
+        # 添加目录表（关键！flags必须设为0x03）
+        id3.add(CTOC(
+            element_id="toc1",
+            flags=0x03,  # 0x03表示这是顶级目录
+            child_element_ids=chap_ids,
             sub_frames=[
-                TIT2(encoding=3, text=[title]),  # 必须使用UTF-8
+                TIT2(encoding=3, text=["Chapters"]),
             ]
         ))
-    id3.add(CTOC(
-        element_id="toc1",
-        flags=0,
-        child_element_ids=chap_ids,
-        sub_frames=[TIT2(encoding=3, text=["Chapters"])]
-    ))
-    
-    output_path = output_path or audio_path
-    # id3.save(output_path)
-    try:
-        id3.save(output_path, v2_version=3) 
+        
+        # 强制保存为ID3v2.3格式（兼容性最好）
+        output_path = output_path or audio_path
+        id3.save(output_path, v2_version=3)
+        
+        print(f"成功写入 {len(chapters)} 个章节")
+        return True
+        
     except Exception as e:
-        logger.error(f"保存章节tag失败: {str(e)}", exc_info=True)
+        print(f"失败: {str(e)}")
         return False
-    logger.info(f"成功处理，共 {len(chapters)} 个章节")
 
 
 def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
@@ -337,4 +355,4 @@ if __name__ == "__main__":
     mp.freeze_support()
     main()
     
-# python audio_chapter_split.py temp01part.mp3 -o tagged_01part.mp3
+# python audio_chapter_split.py clean_01part.mp3
