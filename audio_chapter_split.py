@@ -18,7 +18,7 @@ import argparse
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def find_optimal_split(audio, keyword_pos, silence_thresh=-40, look_back=2000):
+def find_optimal_split(audio, keyword_pos, silence_thresh=-40, look_back=5000):
     """
     在关键词位置前寻找最佳静音分割点
     参数:
@@ -57,10 +57,6 @@ def process_audio_chunk(args):
             audio = recognizer.record(source, duration=chunk_duration)
             text = recognizer.recognize_google(audio, language="en-US")
             
-            if "prologue" in text.lower():
-                # 计算关键词在原始音频中的大致位置
-                keyword_pos = chunk_start + (chunk_duration * 1000 / 2)
-                markers.append(keyword_pos)
             if "chapter" in text.lower():
                 # 计算关键词在原始音频中的大致位置
                 keyword_pos = chunk_start + (chunk_duration * 1000 / 2)
@@ -78,7 +74,7 @@ def detect_chapters_with_silence(audio_path, progress):
     audio = AudioSegment.from_file(audio_path)
     temp_dir = tempfile.mkdtemp()
     cpu_count = os.cpu_count()
-    chunk_size = 30  # 每个进程处理30秒
+    chunk_size = 5  # 每个进程处理10秒
     
     # 分割音频为临时文件
     task_prepare = progress.add_task("[cyan]准备音频...", total=math.ceil(len(audio)/(chunk_size*1000)))
@@ -136,20 +132,21 @@ def save_id3_tags(audio_path, chapters, output_path=None):
             element_id=chap_id,
             start_time=int(start),
             end_time=int(end),
-            sub_frames=[TIT2(text=[title])]
+            sub_frames=[
+                TIT2(encoding=3, text=[title]),  # 必须使用UTF-8
+            ]
         ))
-    
     id3.add(CTOC(
         element_id="toc1",
         flags=0,
         child_element_ids=chap_ids,
-        sub_frames=[TIT2(text=["Chapters"])]
+        sub_frames=[TIT2(encoding=3, text=["Chapters"])]
     ))
     
     output_path = output_path or audio_path
     # id3.save(output_path)
     try:
-        id3.save(output_path)
+        id3.save(output_path, v2_version=3) 
     except Exception as e:
         logger.error(f"保存章节tag失败: {str(e)}", exc_info=True)
         return False
@@ -276,7 +273,8 @@ def process_audio_with_persistence(audio_path: str, progress_file: str = "progre
             if chapters:
                 # safe_save_with_eyed3(audio_path, chapters)
 
-                save_id3_tags(audio_path, chapters, output_path)
+                # save_id3_tags(audio_path, chapters, output_path)
+                save_id3_tags(audio_path, chapters)
 
                 
                 # 处理完成后删除进度文件
@@ -337,4 +335,4 @@ if __name__ == "__main__":
     mp.freeze_support()
     main()
     
-# python audio_chapter_split.py input.mp3 -o output.mp3
+# python audio_chapter_split.py clean_01part.mp3 -o tagged_01part.mp3

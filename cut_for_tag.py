@@ -20,12 +20,15 @@ def split_mp3_with_ffmpeg(input_file, output_dir="output"):
         # 转换为 FFmpeg 时间格式 (HH:MM:SS.ms)
         start_time = f"{int(start_ms//3600000):02d}:{int((start_ms%3600000)//60000):02d}:{int((start_ms%60000)//1000):02d}.{int(start_ms%1000):03d}"
         end_time = f"{int(end_ms//3600000):02d}:{int((end_ms%3600000)//60000):02d}:{int((end_ms%60000)//1000):02d}.{int(end_ms%1000):03d}"
-        
+        print(chapter.title)
         # FFmpeg 无损切割
-        if i == 0:   
-            output_file = os.path.join(output_dir, f"chapter_{i} prologue.mp3")
+        if chapter.title != None:
+            output_file = os.path.join(output_dir, f"{chapter.title}.mp3")
         else:
-            output_file = os.path.join(output_dir, f"chapter_{i}.mp3")
+            if i == 0:   
+                output_file = os.path.join(output_dir, f"chapter_{i} prologue.mp3")
+            else:
+                output_file = os.path.join(output_dir, f"chapter_{i}.mp3")
             
         cmd = [
             "ffmpeg", "-i", input_file,
@@ -61,4 +64,4 @@ def process_all_mp3s(input_dir=".", output_parent_dir="."):
 # 使用示例：处理当前目录所有MP3，输出到 ./output/[原文件名]/ 下
 # process_all_mp3s()
 
-split_mp3_with_ffmpeg("02 Dark River.mp3", "02 Dark River")
+split_mp3_with_ffmpeg("clean_01part.mp3", "01")
