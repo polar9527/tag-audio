@@ -15,10 +15,9 @@ import logging
 import argparse
 
 # 配置日志
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def find_optimal_split(audio, keyword_pos, silence_thresh=-45, look_back=5000):
+def find_optimal_split(audio, keyword_pos, silence_thresh=-45, look_back=3000):
     """
     在关键词位置前寻找最佳静音分割点
     参数:
@@ -34,7 +33,7 @@ def find_optimal_split(audio, keyword_pos, silence_thresh=-45, look_back=5000):
     # 检测静音段
     silent_ranges = silence.detect_nonsilent(
         search_segment, 
-        min_silence_len=4000,
+        min_silence_len=3000,
         silence_thresh=silence_thresh
     )
     
@@ -59,7 +58,7 @@ def process_audio_chunk(args):
             audio = recognizer.record(source, duration=chunk_duration)
             text = recognizer.recognize_google(audio, language="en-US")
             
-            if "chapter" in text.lower():
+            if "chapter" in text.lower() or "prologue" in text.lower():
                 # 计算关键词在原始音频中的大致位置
                 keyword_pos = chunk_start + (chunk_duration * 1000 / 2)
                 markers.append(keyword_pos)
@@ -76,7 +75,7 @@ def detect_chapters_with_silence(audio_path, progress):
     audio = AudioSegment.from_file(audio_path)
     temp_dir = tempfile.mkdtemp()
     cpu_count = os.cpu_count()
-    chunk_size = 5  # 每个进程处理5秒
+    chunk_size = 4  # 每个进程处理5秒
     
     # 分割音频为临时文件
     task_prepare = progress.add_task("[cyan]准备音频...", total=math.ceil(len(audio)/(chunk_size*1000)))
@@ -118,7 +117,12 @@ def create_chapters(audio_path, split_points):
     for i in range(len(split_points)-1):
         start = split_points[i]
         end = split_points[i+1]
-        title = f"Chapter {i}" if i > 0 else f"Chapter {i} Prologue"
+        if i == 0:
+            title = "Opening"
+        elif i == 1:
+            title = f"Chapter {i-1} Prologue"
+        else:
+            title = f"Chapter {i-1}"
         chapters.append((start, end, title))
     return chapters
 
@@ -352,6 +356,7 @@ def main():
         print("错误详情:", str(e))
         
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.WARN)
     mp.freeze_support()
     main()
     
