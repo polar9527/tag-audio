@@ -6,3 +6,9 @@ ffmpeg -i 01part.mp3 -map_metadata -1 -c:a copy clean_01part.mp3
 
 # 清理音频中的 所有chapter标签
 ffmpeg -i 01part.mp3 -map_metadata 0 -map_chapters -1 -c:a copy clean_01part.mp3
+
+
+
+ffmpeg -i 01part.mp3 -f ffmetadata -
+
+ffmpeg -i clean_01part.mp3 -f ffmetadata -
