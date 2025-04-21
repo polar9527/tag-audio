@@ -34,7 +34,7 @@ def find_optimal_split(audio, keyword_pos, silence_thresh=-40, look_back=5000):
     # 检测静音段
     silent_ranges = silence.detect_nonsilent(
         search_segment, 
-        min_silence_len=500,
+        min_silence_len=4000,
         silence_thresh=silence_thresh
     )
     
@@ -42,9 +42,11 @@ def find_optimal_split(audio, keyword_pos, silence_thresh=-40, look_back=5000):
     if not silent_ranges:
         return max(0, keyword_pos - 500)
     
-    # 取最后一个静音段的开始位置
+    # 取最后一个静音段的中间位置
     last_silent_start = silent_ranges[-1][0] + start_pos
-    return last_silent_start
+    last_silent_end = silent_ranges[-1][1] + start_pos
+    optimal_pos = (last_silent_start + last_silent_end) // 2  # 计算中间点
+    return optimal_pos
 
 def process_audio_chunk(args):
     """处理音频片段的多进程函数"""
@@ -74,7 +76,7 @@ def detect_chapters_with_silence(audio_path, progress):
     audio = AudioSegment.from_file(audio_path)
     temp_dir = tempfile.mkdtemp()
     cpu_count = os.cpu_count()
-    chunk_size = 5  # 每个进程处理10秒
+    chunk_size = 10  # 每个进程处理10秒
     
     # 分割音频为临时文件
     task_prepare = progress.add_task("[cyan]准备音频...", total=math.ceil(len(audio)/(chunk_size*1000)))
@@ -335,4 +337,4 @@ if __name__ == "__main__":
     mp.freeze_support()
     main()
     
-# python audio_chapter_split.py clean_01part.mp3 -o tagged_01part.mp3
+# python audio_chapter_split.py temp01part.mp3 -o tagged_01part.mp3
