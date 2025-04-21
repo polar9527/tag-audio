@@ -2,6 +2,9 @@ import eyed3
 import subprocess
 import os
 from glob import glob
+import argparse
+import logging
+logger = logging.getLogger(__name__)
 
 # 根据音频文件的id3 章节标签 分割 音频文件
 def split_mp3_with_ffmpeg(input_file, output_dir="output"):
@@ -64,4 +67,31 @@ def process_all_mp3s(input_dir=".", output_parent_dir="."):
 # 使用示例：处理当前目录所有MP3，输出到 ./output/[原文件名]/ 下
 # process_all_mp3s()
 
-split_mp3_with_ffmpeg("clean_01part.mp3", "01")
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    # 设置命令行参数解析
+    parser = argparse.ArgumentParser(
+        description="根据ID3标签自动分割音频章节",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "audio_file",
+        help="要处理的音频文件路径 (支持MP3/WAV等格式)"
+    )
+    parser.add_argument(
+        "--outputdir", "-o",
+        help="输出文件路径 (默认覆盖原文件)",
+        default=None
+    )
+    args = parser.parse_args()
+    
+    # 检查文件是否存在
+    if not os.path.exists(args.audio_file):
+        logging.error(f"文件不存在: {args.audio_file}")
+        return
+    logging.info(f"文件存在: {args.audio_file}")
+    split_mp3_with_ffmpeg(args.audio_file, args.outputdir)
+    
+if __name__ == "__main__":
+    main()
