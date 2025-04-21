@@ -1,18 +1,20 @@
 import os
-import numpy as np
-from pydub import AudioSegment, silence
-from mutagen.id3 import ID3, CHAP, CTOC, TIT2, TPE1, TRCK
-import speech_recognition as sr
-from rich.progress import Progress
-import tempfile
 import math
-import multiprocessing as mp
-
 import json
-from pathlib import Path
-from datetime import datetime
 import logging
 import argparse
+import io
+
+import multiprocessing as mp
+
+from pathlib import Path
+from datetime import datetime
+
+import speech_recognition as sr
+
+from pydub import AudioSegment, silence
+from mutagen.id3 import ID3, CHAP, CTOC, TIT2
+from rich.progress import Progress
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -49,31 +51,32 @@ def find_optimal_split(audio, keyword_pos, silence_thresh=-45, look_back=5000):
 
 def process_audio_chunk(args):
     """处理音频片段的多进程函数"""
-    chunk_path, chunk_start, chunk_duration, silence_thresh = args
+    chunk_data, chunk_start, chunk_duration = args
     recognizer = sr.Recognizer()
     markers = []
+
+    # 重建缓冲区
+    with io.BytesIO(chunk_data) as buffer:
+        try:
+            with sr.AudioFile(buffer) as source:
+                audio = recognizer.record(source, duration=chunk_duration)
+                text = recognizer.recognize_google(audio, language="en-US")
+                
+                if "chapter" in text.lower() or "prologue" in text.lower():
+                    # 计算关键词在原始音频中的大致位置
+                    keyword_pos = chunk_start + (chunk_duration * 1000 / 2)
+                    markers.append(keyword_pos)
+        except Exception as e:
+            logger.debug(f"片段处理异常: {str(e)}")
     
-    try:
-        with sr.AudioFile(chunk_path) as source:
-            audio = recognizer.record(source, duration=chunk_duration)
-            text = recognizer.recognize_google(audio, language="en-US")
-            
-            if "chapter" in text.lower() or "prologue" in text.lower():
-                # 计算关键词在原始音频中的大致位置
-                keyword_pos = chunk_start + (chunk_duration * 1000 / 2)
-                markers.append(keyword_pos)
-    except Exception as e:
-        pass
-    
-    logger.info(f"删除临时音频文件: {chunk_path}")
-    os.remove(chunk_path)
+
+
     return markers
 
 def detect_chapters_with_silence(audio_path, progress):
     """主检测函数：结合语音识别和静音分析"""
     # 准备音频
     audio = AudioSegment.from_file(audio_path)
-    temp_dir = tempfile.mkdtemp()
     cpu_count = os.cpu_count()
     chunk_size = 5  # 每个进程处理5秒
     
@@ -82,9 +85,11 @@ def detect_chapters_with_silence(audio_path, progress):
     chunks = []
     for i in range(0, len(audio), chunk_size * 1000):
         chunk = audio[i:i + chunk_size * 1000]
-        chunk_path = os.path.join(temp_dir, f"chunk_{i}.wav")
-        chunk.export(chunk_path, format="wav")
-        chunks.append((chunk_path, i, chunk_size, -40))  # 静音阈值-40dB
+              
+        with io.BytesIO() as buffer:
+            chunk.export(buffer, format="wav")
+            chunks.append((buffer.getvalue(), i, chunk_size))
+
         progress.update(task_prepare, advance=1)
     
     # 并行处理
@@ -107,8 +112,6 @@ def detect_chapters_with_silence(audio_path, progress):
     
     split_points.append(len(audio))
     
-    logger.info(f"删除临时音频文件目录: {temp_dir}")
-    os.rmdir(temp_dir)
     return split_points
 
 def create_chapters(audio_path, split_points):
@@ -295,17 +298,7 @@ def process_audio_with_persistence(audio_path: str, progress_file: str = "progre
             
             # 保存ID3标签
             if chapters:
-                # safe_save_with_eyed3(audio_path, chapters)
-
-                # save_id3_tags(audio_path, chapters, output_path)
                 save_id3_tags(audio_path, chapters)
-
-                
-                # 处理完成后删除进度文件
-                # try:
-                #     os.remove(progress_file)
-                # except:
-                #     pass
                 
             return chapters
             
