@@ -15,8 +15,8 @@ def clean_brackets_in_names(root_dir="."):
             print(name)
             old_path = os.path.join(dirpath, name)
             
-            # 使用正则替换【数字】→ 数字+空格
-            new_name = re.sub(r'【(\d+)】', r'\1 ', name)
+            # 改进后的正则：匹配【数字】或【数字-数字】
+            new_name = re.sub(r'【(\d+(?:-\d+)?)】', r'\1 ', name)
             
             if new_name != name:  # 只有当名称变化时才重命名
                 new_path = os.path.join(dirpath, new_name)
