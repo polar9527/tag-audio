@@ -4,7 +4,7 @@ import json
 import logging
 import argparse
 import io
-
+from datetime import timedelta
 import multiprocessing as mp
 
 from pathlib import Path
@@ -179,6 +179,12 @@ def save_id3_tags(audio_path, chapters, output_path=None):
         print(f"失败: {str(e)}")
         return False
 
+def format_seconds(seconds):
+    td = timedelta(seconds=int(seconds))
+    total_seconds = int(td.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}h{minutes}m{seconds}s"
 
 def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
     """
@@ -189,6 +195,9 @@ def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
     返回:
         bool: 是否保存成功
     """
+    timelines = data["timelines"]
+    if not timelines:
+         timelines = [f"在 {format_seconds(split_at/1000)} 处分割" for split_at in data["split_points"]]
     try:
         # 准备可序列化数据
         serializable_data = {
@@ -196,7 +205,7 @@ def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
                 "timestamp": datetime.now().isoformat(),
                 "version": "1.0"
             },
-            "timelines": [f"在 {split_at/1000:.1f}s 处分割" for split_at in data["split_points"]],
+            "timelines": timelines,
             "split_points": [int(x) for x in data["split_points"]],
             "chapters": [
                 (int(start), int(end), str(title))
@@ -204,7 +213,6 @@ def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
             ],
             "audio_info": {
                 "path": str(data.get("audio_path", "")),
-                "duration_ms": int(data.get("duration_ms", 0))
             }
         }
         
@@ -265,6 +273,7 @@ def process_audio_with_persistence(audio_path: str, progress_file: str = "progre
     if progress_data and progress_data["audio_info"].get("path") == audio_path:
         split_points = progress_data["split_points"]
         chapters = progress_data["chapters"]
+        timelines =  progress_data["timeliness"]
         logger.info(f"恢复进度: 已加载 {len(chapters)} 个章节")
     else:
         split_points = []
@@ -290,7 +299,8 @@ def process_audio_with_persistence(audio_path: str, progress_file: str = "progre
                 save_progress_to_json({
                     "split_points": split_points,
                     "chapters": chapters,
-                    "audio_path": audio_path
+                    "audio_path": audio_path,
+                    "timelines": timelines
                 }, progress_file)
             
             # 保存ID3标签
