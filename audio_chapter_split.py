@@ -13,7 +13,7 @@ from datetime import datetime
 import speech_recognition as sr
 
 from pydub import AudioSegment, silence
-from mutagen.id3 import ID3, CHAP, CTOC, TIT2
+from mutagen.id3 import ID3, CHAP, CTOC, TIT2, TXXX
 from rich.progress import Progress
 
 # 配置日志
@@ -142,11 +142,10 @@ def save_id3_tags(audio_path, chapters, output_path=None):
         id3.delall('CHAP')
         id3.delall('CTOC')
         
-        
         # 添加章节（确保时间单位是毫秒）
         chap_ids = []
         for i, (start_ms, end_ms, title) in enumerate(chapters):
-            chap_id = f"chp{i}"
+            chap_id = f"ch{i}"
             chap_ids.append(chap_id)
             
             id3.add(CHAP(
@@ -160,17 +159,18 @@ def save_id3_tags(audio_path, chapters, output_path=None):
         
         # 添加目录表（关键！flags必须设为0x03）
         id3.add(CTOC(
-            element_id="toc1",
+            element_id="toc",
             flags=0x03,  # 0x03表示这是顶级目录
             child_element_ids=chap_ids,
-            sub_frames=[
-                TIT2(encoding=3, text=["Chapters"]),
-            ]
         ))
+        
+        # 必须先添加一些TXXX类型的元数据，播放器才能在音轨时间轴上显示章节标签
+        id3.add(TXXX(encoding=3, desc="Warriors"))
         
         # 强制保存为ID3v2.3格式（兼容性最好）
         output_path = output_path or audio_path
-        id3.save(output_path, v2_version=3)
+        # id3.save(output_path, v2_version=3)
+        id3.save(output_path)
         
         print(f"成功写入 {len(chapters)} 个章节")
         return True
