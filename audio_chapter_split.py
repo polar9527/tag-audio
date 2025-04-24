@@ -196,6 +196,7 @@ def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
                 "timestamp": datetime.now().isoformat(),
                 "version": "1.0"
             },
+            "timelines": [f"在 {split_at/1000:.1f}s 处分割" for split_at in data["split_points"]],
             "split_points": [int(x) for x in data["split_points"]],
             "chapters": [
                 (int(start), int(end), str(title))
@@ -208,12 +209,8 @@ def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
         }
         
         # 写入文件（原子操作模式）
-        temp_path = Path(filename).with_suffix(".tmp")
-        with open(temp_path, 'w', encoding='utf-8') as f:
+        with open(filename, 'w', encoding='utf-8') as f:
             json.dump(serializable_data, f, indent=2, ensure_ascii=False)
-        
-        # 替换原文件
-        temp_path.replace(filename)
         logger.info(f"进度已保存到 {filename}")
         return True
         
