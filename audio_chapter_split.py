@@ -195,10 +195,11 @@ def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
     返回:
         bool: 是否保存成功
     """
-    timelines = data["timelines"]
-    if not timelines:
-         timelines = [f"在 {format_seconds(split_at/1000)} 处分割" for split_at in data["split_points"]]
+
     try:
+        # 获取timelines或生成默认值
+        timelines = data.get("timelines", 
+                             [f"在 {format_seconds(split_at/1000)} 处分割" for split_at in data["split_points"]])
         # 准备可序列化数据
         serializable_data = {
             "metadata": {
@@ -255,6 +256,7 @@ def load_progress_from_json(filename: str = "progress.json") -> dict:
         # 转换回原始格式
         return {
             "split_points": data["split_points"],
+            "timelines": data["timelines"],
             "chapters": [tuple(chap) for chap in data["chapters"]],
             "audio_info": data.get("audio_info", {}),
             "metadata": data.get("metadata", {})
@@ -273,11 +275,12 @@ def process_audio_with_persistence(audio_path: str, progress_file: str = "progre
     if progress_data and progress_data["audio_info"].get("path") == audio_path:
         split_points = progress_data["split_points"]
         chapters = progress_data["chapters"]
-        timelines =  progress_data["timeliness"]
+        timelines =  progress_data["timelines"]
         logger.info(f"恢复进度: 已加载 {len(chapters)} 个章节")
     else:
         split_points = []
         chapters = []
+        timelines = []
     
     try:
         with Progress() as progress:
