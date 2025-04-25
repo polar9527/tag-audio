@@ -119,7 +119,7 @@ def detect_chapters_with_silence(audio_path, progress):
         split_at = find_optimal_split(audio, pos)
         if split_at - split_points[-1] > 5000:  # 最小章节长度5秒
             split_points.append(split_at)
-            progress.print(f"在 {pos/1000:.1f}s 前 {split_at/1000:.1f}s 处分割", task=task_split)
+            progress.print(f"在 {pos/1000:.1f}s 前 {split_at/1000:.1f}s 处分割")
         progress.update(task_split, advance=1)
     
     split_points.append(audio_len)
@@ -145,10 +145,7 @@ def save_id3_tags(audio_path, chapters, output_path=None):
     """保存章节信息到ID3标签（兼容播放器显示）"""
     try:
         # 加载或创建ID3标签
-        try:
-            id3 = ID3(audio_path)
-        except:
-            id3 = ID3()
+        id3 = ID3(audio_path)
         
         # 清除现有章节
         id3.delall('CHAP')
