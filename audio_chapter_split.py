@@ -54,24 +54,34 @@ def process_audio_chunk(args):
     chunk_data, chunk_start, chunk_duration = args
     recognizer = sr.Recognizer()
     markers = []
-
+    chunk_start_second = format_seconds(chunk_start/1000)
+    print(f"\n在 {chunk_start_second}秒开始检测")
     # 重建缓冲区
     with io.BytesIO(chunk_data) as buffer:
         try:
             with sr.AudioFile(buffer) as source:
                 audio = recognizer.record(source, duration=chunk_duration)
-                text = recognizer.recognize_google(audio, language="en-US")
-                # text = recognizer.recognize_whisper(audio,model="base",load_options={"device": "cuda"})
-                
-                if "chapter" in text.lower() or "prologue" in text.lower():
-                    # 计算关键词在原始音频中的大致位置
-                    keyword_pos = chunk_start + (chunk_duration * 1000 / 2)
-                    markers.append(keyword_pos)
+                # text = recognizer.recognize_google(audio, language="en-US")
+                text = recognizer.recognize_whisper(
+                            audio,
+                            model="base",
+                            language="en",
+                            load_options={"device": "cuda"}
+                        ).lower()
+                # 计算关键词在原始音频中的大致位置
+                words = text.split()
+                for pos, word in enumerate(words):
+                    if word == 'chapter' or word == 'prologue':
+                        # 计算单词在音频中的时间位置
+                        keyword_pos = chunk_start + (pos/len(words)) * chunk_duration *1000
+                        keyword_pos_second = format_seconds(keyword_pos/1000)
+                        print(f"在 {keyword_pos/1000:.2f}秒， 检测到chapter")
+                        print(f"在 {keyword_pos_second} 处，检测到chapter")
+                        markers.append(keyword_pos)
         except Exception as e:
+            print(f"片段处理异常: {str(e)}")
             logger.debug(f"片段处理异常: {str(e)}")
-    
-
-
+            
     return markers
 
 def detect_chapters_with_silence(audio_path, progress):
@@ -80,7 +90,7 @@ def detect_chapters_with_silence(audio_path, progress):
     audio = AudioSegment.from_file(audio_path)
     audio_len = len(audio)
     cpu_count = os.cpu_count() - 1
-    chunk_size = 5  # 每个进程处理5秒
+    chunk_size = 300  # 每个进程处理300秒
     
     # 分割音频为临时文件
     task_prepare = progress.add_task("[cyan]准备音频...", total=math.ceil(audio_len/(chunk_size*1000)))
@@ -97,7 +107,7 @@ def detect_chapters_with_silence(audio_path, progress):
     # 并行处理
     task_detect = progress.add_task("[green]检测关键词...", total=len(chunks))
     keyword_positions = []
-    with mp.Pool(max(cpu_count - 1, 1)) as pool:
+    with mp.Pool(max(cpu_count, 1)) as pool:
         for result in pool.imap_unordered(process_audio_chunk, chunks):
             keyword_positions.extend(result)
             progress.update(task_detect, advance=1)
@@ -109,7 +119,7 @@ def detect_chapters_with_silence(audio_path, progress):
         split_at = find_optimal_split(audio, pos)
         if split_at - split_points[-1] > 5000:  # 最小章节长度5秒
             split_points.append(split_at)
-            progress.print(f"在 {pos/1000:.1f}s 前 {split_at/1000:.1f}s 处分割")
+            progress.print(f"在 {pos/1000:.1f}s 前 {split_at/1000:.1f}s 处分割", task=task_split)
         progress.update(task_split, advance=1)
     
     split_points.append(audio_len)
