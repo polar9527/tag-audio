@@ -77,13 +77,14 @@ def detect_chapters_with_silence(audio_path, progress):
     """主检测函数：结合语音识别和静音分析"""
     # 准备音频
     audio = AudioSegment.from_file(audio_path)
-    cpu_count = os.cpu_count()
+    audio_len = len(audio)
+    cpu_count = os.cpu_count() - 1
     chunk_size = 5  # 每个进程处理5秒
     
     # 分割音频为临时文件
-    task_prepare = progress.add_task("[cyan]准备音频...", total=math.ceil(len(audio)/(chunk_size*1000)))
+    task_prepare = progress.add_task("[cyan]准备音频...", total=math.ceil(audio_len/(chunk_size*1000)))
     chunks = []
-    for i in range(0, len(audio), chunk_size * 1000):
+    for i in range(0, audio_len, chunk_size * 1000):
         chunk = audio[i:i + chunk_size * 1000]
               
         with io.BytesIO() as buffer:
@@ -95,7 +96,7 @@ def detect_chapters_with_silence(audio_path, progress):
     # 并行处理
     task_detect = progress.add_task("[green]检测关键词...", total=len(chunks))
     keyword_positions = []
-    with mp.Pool(cpu_count) as pool:
+    with mp.Pool(max(cpu_count - 1, 1)) as pool:
         for result in pool.imap_unordered(process_audio_chunk, chunks):
             keyword_positions.extend(result)
             progress.update(task_detect, advance=1)
@@ -110,7 +111,7 @@ def detect_chapters_with_silence(audio_path, progress):
             progress.print(f"在 {pos/1000:.1f}s 前 {split_at/1000:.1f}s 处分割")
         progress.update(task_split, advance=1)
     
-    split_points.append(len(audio))
+    split_points.append(audio_len)
     
     return split_points
 
@@ -293,7 +294,6 @@ def process_audio_with_persistence(audio_path: str, progress_file: str = "progre
                     "split_points": split_points,
                     "chapters": chapters,
                     "audio_path": audio_path,
-                    "duration_ms": len(AudioSegment.from_file(audio_path))
                 }, progress_file)
             
             # 生成章节
