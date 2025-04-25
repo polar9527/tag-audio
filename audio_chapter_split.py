@@ -115,7 +115,7 @@ def detect_chapters_with_silence(audio_path, progress):
     
     return split_points
 
-def create_chapters(audio_path, split_points):
+def create_chapters(split_points):
     """根据分割点创建章节"""
     chapters = []
     for i in range(len(split_points)-1):
@@ -198,16 +198,13 @@ def save_progress_to_json(data: dict, filename: str = "progress.json") -> bool:
     """
 
     try:
-        # 获取timelines或生成默认值
-        timelines = data.get("timelines", 
-                             [f"在 {format_seconds(split_at/1000)} 处分割" for split_at in data["split_points"]])
         # 准备可序列化数据
         serializable_data = {
             "metadata": {
                 "timestamp": datetime.now().isoformat(),
                 "version": "1.0"
             },
-            "timelines": timelines,
+            "timelines": [t for t in data["timelines"]],
             "split_points": [int(x) for x in data["split_points"]],
             "chapters": [
                 (int(start), int(end), str(title))
@@ -288,28 +285,20 @@ def process_audio_with_persistence(audio_path: str, progress_file: str = "progre
             # 如果split_points为空，重新检测
             if not split_points:
                 split_points = detect_chapters_with_silence(audio_path, progress)
-                
+                timelines = [f"在 {format_seconds(split_at/1000)} 处分割" for split_at in split_points],
+                chapters = create_chapters(split_points)
                 # 立即保存检测结果
                 save_progress_to_json({
                     "split_points": split_points,
+                    "timelines": timelines,
                     "chapters": chapters,
                     "audio_path": audio_path,
                 }, progress_file)
-            
-            # 生成章节
-            if split_points and not chapters:
-                chapters = create_chapters(audio_path, split_points)
-                save_progress_to_json({
-                    "split_points": split_points,
-                    "chapters": chapters,
-                    "audio_path": audio_path,
-                    "timelines": timelines
-                }, progress_file)
-            
+                         
             # 保存ID3标签
             if chapters:
                 save_id3_tags(audio_path, chapters)
-                
+                           
             return chapters
             
     except Exception as e:
