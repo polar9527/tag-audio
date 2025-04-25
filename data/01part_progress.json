@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "timestamp": "2025-04-25T09:23:50.606691",
+    "version": "1.0"
+  },
+  "timelines": [],
+  "split_points": [
+    0,
+    15000,
+    511427
+  ],
+  "chapters": [
+    [
+      0,
+      15000,
+      "Opening"
+    ],
+    [
+      15000,
+      511427,
+      "Chapter 0 Prologue"
+    ]
+  ],
+  "audio_info": {
+    "path": "01part.mp3"
+  }
+}
