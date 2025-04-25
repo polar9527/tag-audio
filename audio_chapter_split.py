@@ -61,6 +61,7 @@ def process_audio_chunk(args):
             with sr.AudioFile(buffer) as source:
                 audio = recognizer.record(source, duration=chunk_duration)
                 text = recognizer.recognize_google(audio, language="en-US")
+                # text = recognizer.recognize_whisper(audio,model="base",load_options={"device": "cuda"})
                 
                 if "chapter" in text.lower() or "prologue" in text.lower():
                     # 计算关键词在原始音频中的大致位置
@@ -173,11 +174,11 @@ def save_id3_tags(audio_path, chapters, output_path=None):
         # id3.save(output_path, v2_version=3)
         id3.save(output_path)
         
-        print(f"成功写入 {len(chapters)} 个章节")
+        logging.info(f"成功写入 {len(chapters)} 个章节")
         return True
         
     except Exception as e:
-        print(f"失败: {str(e)}")
+        logging.error(f"失败: {str(e)}")
         return False
 
 def format_seconds(seconds):
@@ -340,15 +341,15 @@ def main():
     try:
         chapters = process_audio_with_persistence(args.audio_file, progress_file, output_path)
         if chapters:
-            print("\n最终章节划分:")
+            logging.info("最终章节划分:")
             for chap in chapters:
-                print(f"{chap[2]}: {chap[0]/1000:.1f}s - {chap[1]/1000:.1f}s")
+                logging.info(f"{chap[2]}: {chap[0]/1000:.1f}s - {chap[1]/1000:.1f}s")
     except Exception as e:
-        print(f"\n处理中断，可以从以下文件恢复进度: {progress_file}")
-        print("错误详情:", str(e))
+        logging.error(f"处理中断，可以从以下文件恢复进度: {progress_file}")
+        logging.error("错误详情:", str(e))
         
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.WARN)
+    logging.basicConfig(level=logging.INFO)
     mp.freeze_support()
     main()
     
